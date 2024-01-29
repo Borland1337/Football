@@ -13,6 +13,13 @@ public class Client : MonoBehaviour
     [SerializeField] private Transform Ball;
     [SerializeField] private TextMeshProUGUI Score;
     [SerializeField] private TextMeshProUGUI GolText;
+    [SerializeField] private TextMeshProUGUI QuestionText;
+    [SerializeField] private TextMeshProUGUI[] Variants;
+    [SerializeField] private Button[] VariantButtons;
+    [SerializeField] private GameObject Questions;
+    [SerializeField] private GameObject QuestionsAdditional;
+    [SerializeField] private TMP_InputField CodeField;
+    [SerializeField] private TextMeshProUGUI QuestionAdditionalText;
     private int BallPosition;
 
     private void Start()
@@ -34,11 +41,11 @@ public class Client : MonoBehaviour
     {
         if (iscorrect)
         {
-            Game.GetVariants[id].color = Color.green;
+            Variants[id].color = Color.green;
         }
         else
         {
-            Game.GetVariants[id].color = Color.red;
+            Variants[id].color = Color.red;
         }
     }
 
@@ -66,7 +73,7 @@ public class Client : MonoBehaviour
     }
 
     [PunRPC]
-    private void GolAnnounce(string text)
+    private void Announce(string text)
     {
         GolText.text = text;
         StartCoroutine(GolAnnouceEnum());
@@ -77,5 +84,58 @@ public class Client : MonoBehaviour
         yield return new WaitForSecondsRealtime(3f);
         GolText.text = string.Empty;
     }
+    [PunRPC]
+    private void NextQuestionClient(int num)
+    {
+        Questions.SetActive(true);
+        QuestionsAdditional.SetActive(false);
+        QuestionText.text = Game.Data[num].Qustion;
 
+        foreach (Button item in VariantButtons)
+        {
+            item.interactable = true;
+        }
+
+        Variants[0].text = Game.Data[num].Variants[0];
+        Variants[1].text = Game.Data[num].Variants[1];
+        Variants[2].text = Game.Data[num].Variants[2];
+        Variants[3].text = Game.Data[num].Variants[3];
+
+        Variants[0].color = Color.white;
+        Variants[1].color = Color.white;
+        Variants[2].color = Color.white;
+        Variants[3].color = Color.white;
+    }
+
+    [PunRPC]
+    public void NextQuestionAdditionalClient(int num)
+    {
+        Questions.SetActive(false);
+        QuestionsAdditional.SetActive(true);
+        QuestionAdditionalText.text = Game.DataAdditional[num].Qustion;
+    }
+
+    public void EnterCode(int code)
+    {
+        if (CodeField.text.Length < 4)
+        {
+            CodeField.text += code;
+        }
+    }
+
+    public void RemoveCode()
+    {
+        if (CodeField.text.Length != 0)
+        {
+            CodeField.text = CodeField.text.Remove(CodeField.text.Length - 1);
+        }
+    }
+
+    public void SendCode()
+    {
+        photonView.RPC("PlayerAnswerAdditional", RpcTarget.All, int.Parse(CodeField.text), PhotonNetwork.LocalPlayer.NickName);
+        QuestionsAdditional.SetActive(false);
+        CodeField.text = string.Empty;
+        Announce("Ваш ответ принят");
+    }
 }

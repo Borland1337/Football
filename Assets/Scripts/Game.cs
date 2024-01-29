@@ -4,25 +4,29 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using UnityEngine.UI;
 
 public class Game : MonoBehaviourPunCallbacks
 {
-    [SerializeField] private List<Qustions> Data = new List<Qustions>();
-    [SerializeField] private TextMeshProUGUI QuestionText;
-    [SerializeField] private TextMeshProUGUI[] Variants;
-    [SerializeField] private Button[] VariantButtons;
+    public List<Qustions> Data = new List<Qustions>();
+    public List<QustionsAdditional> DataAdditional = new List<QustionsAdditional>();
     [SerializeField] private Transform ContentPage;
     [SerializeField] private List<Player> PlayerList = new List<Player>();
     [SerializeField] private Client Client;
     [SerializeField] private TextMeshProUGUI TimerText;
+    [SerializeField] private TextMeshProUGUI GlobalTimerText;
     [SerializeField] private GameObject EndGame;
     [SerializeField] private TextMeshProUGUI EndGameText;
-    public TextMeshProUGUI[] GetVariants => Variants;
+    [SerializeField] private float MathTime = 500f;
+
     private int CurrentQuestionID;
+    private int CurrentQuestionAdditionalID;
     private bool GameStarted = false;
-    private float timer = 3f;
+    private float GlobalTimer = 500f;
+    private float timer = 15f;
     private int BallPosition = 2;
+    private bool AdditionalQuestPause;
+    private bool AdditionalQuestUnpause;
+    private string FastPlayerAnswer = string.Empty;
 
     private void Start()
     {
@@ -30,8 +34,9 @@ public class Game : MonoBehaviourPunCallbacks
         {
             PlayerList.Add(player);
         }
-        string score = PlayerList[0].NickName + " " + PlayerList[0].Score + " : " + PlayerList[1].Score + " " + PlayerList[0].NickName;
+        string score = PlayerList[0].NickName + " " + PlayerList[0].Score + " : " + PlayerList[1].Score + " " + PlayerList[1].NickName;
         photonView.RPC("UpdateScore", RpcTarget.All, score);
+        photonView.RPC("GlobalTimerSync", RpcTarget.All, MathTime);
 
         if (PhotonNetwork.IsMasterClient)
         {
@@ -46,41 +51,50 @@ public class Game : MonoBehaviourPunCallbacks
         GameStarted = true;
     }
 
-    [PunRPC]
-    private void NextQuestionClient(int seed)
-    {
-        QuestionText.text = Data[seed].Qustion;
-
-        foreach (Button item in VariantButtons)
-        {
-            item.interactable = true;
-        }
-
-        Variants[0].text = Data[seed].Variants[0];
-        Variants[1].text = Data[seed].Variants[1];
-        Variants[2].text = Data[seed].Variants[2];
-        Variants[3].text = Data[seed].Variants[3];
-
-        Variants[0].color = Color.white;
-        Variants[1].color = Color.white;
-        Variants[2].color = Color.white;
-        Variants[3].color = Color.white;
-    }
-
     private void Update()
     {
         Master();
-        TimerText.text = "Время на ответ " + (int)timer;
+        TimerText.text = "Время на ответ " + (int)timer + " секунд";
+        GlobalTimerText.text = "Время до конца матча " + (int)GlobalTimer + " секунд";
         if (timer >= 0)
         {
             timer -= Time.deltaTime;
         }
+        if (GlobalTimer >= 0)
+        {
+            GlobalTimer -= Time.deltaTime;
+        }
+        if (PhotonNetwork.IsMasterClient)
+        {
+            if (GlobalTimer <= 0)
+            {
+                GameStarted = false;
+                EndGame.SetActive(true);
+                if (PlayerList[0].Score == PlayerList[1].Score)
+                {
+                    EndGameText.text = "Ничья";
+                }
+                if (PlayerList[0].Score < PlayerList[1].Score)
+                {
+                    EndGameText.text = "Победа игрока " + PlayerList[1].NickName;
+                }
+                else
+                {
+                    EndGameText.text = "Победа игрока " + PlayerList[0].NickName;
+                }
+            }
+        }
     }
 
     [PunRPC]
-    public void Timer(float time)
+    public void TimerSync(float time)
     {
         timer = time;
+    }
+    [PunRPC]
+    public void GlobalTimerSync(float time)
+    {
+        GlobalTimer = time;
     }
 
     private void Master()
@@ -94,11 +108,21 @@ public class Game : MonoBehaviourPunCallbacks
             if (timer <= 0)
             {
                 MoveBall();
+                if (AdditionalQuestPause)
+                {
+                    AdditionalQuestUnpause = true;
+                    AdditionalQuestPause = false;
+                    timer = 15f;
+                    return;
+                }
+                if (AdditionalQuestUnpause)
+                {
+                    AdditionalQuestionVariants();
+                }
                 StartGame();
                 string score = PlayerList[0].NickName + " " + PlayerList[0].Score + " : " + PlayerList[1].Score + " " + PlayerList[1].NickName;
                 photonView.RPC("UpdateScore", RpcTarget.All, score);
-                photonView.RPC("Timer", RpcTarget.All, 10f);
-                timer = 10f;
+                photonView.RPC("TimerSync", RpcTarget.All, 15f);
             }
         }
     }
@@ -113,6 +137,7 @@ public class Game : MonoBehaviourPunCallbacks
             }
             if (PlayerList[0].isAnswered == true & PlayerList[1].isAnswered == true)
             {
+                AdditionalQuestion();
                 return;
             }
             if (PlayerList[0].isAnswered == true)
@@ -124,13 +149,24 @@ public class Game : MonoBehaviourPunCallbacks
                 BallPosition -= 1;
             }
 
-            BallPositionIsInfinity();
-
-            photonView.RPC("MoveBallClient", RpcTarget.All, BallPosition);
-
-            PlayerList[0].isAnswered = false;
-            PlayerList[1].isAnswered = false;
+            MoveBallAndReset();
         }
+    }
+
+    private void MoveBallAndReset()
+    {
+        BallPositionIsInfinity();
+
+        photonView.RPC("MoveBallClient", RpcTarget.All, BallPosition);
+
+        PlayerList[0].isAnswered = false;
+        PlayerList[1].isAnswered = false;
+
+        PlayerList[0].isAnsweredAdditional = false;
+        PlayerList[1].isAnsweredAdditional = false;
+
+        PlayerList[0].Additional = 0;
+        PlayerList[1].Additional = 0;
     }
 
     private void BallPositionIsInfinity()
@@ -139,14 +175,14 @@ public class Game : MonoBehaviourPunCallbacks
         {
             if (BallPosition > 4)
             {
-                PlayerList[1].Score++;
-                photonView.RPC("GolAnnounce", RpcTarget.All, PlayerList[1].NickName + " забивает гол!");
+                PlayerList[0].Score++;
+                photonView.RPC("Announce", RpcTarget.All, PlayerList[0].NickName + " забивает гол!");
                 BallPosition = 2;
             }
             if (BallPosition < 0)
             {
-                PlayerList[0].Score++;
-                photonView.RPC("GolAnnounce", RpcTarget.All, PlayerList[0].NickName + " забивает гол!");
+                PlayerList[1].Score++;
+                photonView.RPC("Announce", RpcTarget.All, PlayerList[1].NickName + " забивает гол!");
                 BallPosition = 2;
             }
         }
@@ -184,6 +220,34 @@ public class Game : MonoBehaviourPunCallbacks
         }
     }
 
+    [PunRPC]
+    public void PlayerAnswerAdditional(int id, string nick)
+    {
+        if (FastPlayerAnswer == string.Empty)
+        {
+            FastPlayerAnswer = nick;
+        }
+        if (PhotonNetwork.IsMasterClient == false)
+        {
+            return;
+        }
+        Player player = null;
+        foreach (Player item in PlayerList)
+        {
+            if (item.NickName == nick)
+            {
+                player = item;
+            }
+        }
+        if (player == null)
+        {
+            Debug.Log("Bug!!");
+            return;
+        }
+        player.Additional = id;
+        player.isAnsweredAdditional = true;
+    }
+
     public override void OnPlayerLeftRoom(Player otherPlayer)
     {
         base.OnPlayerLeftRoom(otherPlayer);
@@ -200,6 +264,7 @@ public class Game : MonoBehaviourPunCallbacks
 
     public void LoadLevel()
     {
+        PhotonNetwork.LeaveRoom();
         SceneManager.LoadScene(0);
     }
 
@@ -207,11 +272,102 @@ public class Game : MonoBehaviourPunCallbacks
     {
         Application.Quit();
     }
+    private void AdditionalQuestion()
+    {
+        PlayerList[0].isAnswered = false;
+        PlayerList[1].isAnswered = false;
+        CurrentQuestionAdditionalID = Random.Range(0, DataAdditional.Count);
+        AdditionalQuestPause = true;
+        photonView.RPC("Announce", RpcTarget.All, "Два игрока ответили правильно. Допольнительный вопрос!");
+        photonView.RPC("TimerSync", RpcTarget.All, 30f);
+        photonView.RPC("NextQuestionAdditionalClient", RpcTarget.All, CurrentQuestionAdditionalID);
+    }
+    private void AdditionalQuestionVariants()
+    {
+        string answersLog = string.Empty;
+        int player1 = PlayerList[0].Additional;
+        int player2 = PlayerList[1].Additional;
+        int correct = DataAdditional[CurrentQuestionAdditionalID].Correct;
+        if (PlayerList[0].isAnsweredAdditional == false)
+        {
+            answersLog = "Игрок" + PlayerList[0].NickName + "воздержался от ответа. Очко достается игроку " + PlayerList[1].NickName;
+            Result(true, answersLog);
+            return;
+        }
+        if (PlayerList[1].isAnsweredAdditional == false)
+        {
+            answersLog = "Игрок" + PlayerList[1].NickName + "воздержался от ответа. Очко достается игроку " + PlayerList[0].NickName;
+            Result(false, answersLog);
+            return;
+        }
+        if (player1 == correct & player2 == correct)
+        {
+            if (PlayerList[0].NickName == FastPlayerAnswer)
+            {
+                answersLog = "Игрок" + PlayerList[0].NickName + "угадал и ответил быстрее. Очко достается игроку " + PlayerList[0].NickName;
+                Result(true, answersLog);
+                return;
+            }
+            if (PlayerList[1].NickName == FastPlayerAnswer)
+            {
+                answersLog = "Игрок" + PlayerList[1].NickName + "угадал и ответил быстрее. Очко достается игроку " + PlayerList[1].NickName;
+                Result(false, answersLog);
+                return;
+            }
+        }
+        if (player1 == correct)
+        {
+            answersLog = "Очко достается игроку " + PlayerList[0].NickName;
+            Result(true, answersLog);
+            return;
+        }
+        if (player2 == correct)
+        {
+            answersLog = "Очко достается игроку " + PlayerList[1].NickName;
+            Result(false, answersLog);
+            return;
+        }
+        int sum1 = correct -= player1;
+        int sum2 = correct -= player2;
+        if (sum1 < sum2)
+        {
+            answersLog = "Очко достается игроку " + PlayerList[0].NickName;
+            Result(true, answersLog);
+            return;
+        }
+        else
+        {
+            answersLog = "Очко достается игроку " + PlayerList[1].NickName;
+            Result(false, answersLog);
+            return;
+        }
+    }
+    private void Result(bool firstplayer, string answersLog)
+    {
+        if (firstplayer)
+        {
+            BallPosition += 1;
+        }
+        else
+        {
+            BallPosition -= 1;
+        }
+        FastPlayerAnswer = string.Empty;
+        MoveBallAndReset();
+        photonView.RPC("Announce", RpcTarget.All, answersLog);
+        AdditionalQuestUnpause = false;
+    }
 }
 [System.Serializable]
 public class Qustions
 {
     public string Qustion;
     public string[] Variants;
+    public int Correct;
+}
+[System.Serializable]
+public class QustionsAdditional
+{
+    public string Qustion;
     public int Correct;
 }

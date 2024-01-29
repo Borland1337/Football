@@ -5,27 +5,47 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class Menu : MonoBehaviourPunCallbacks
+public class Menu : MonoBehaviourPunCallbacks, IMatchmakingCallbacks
 {
     [SerializeField] private TextMeshProUGUI TextSearchGame;
     [SerializeField] private Button[] MenuButtons;
     [SerializeField] private GameObject Connecttomaster;
     [SerializeField] private TextMeshProUGUI Log;
+    [SerializeField] private TMP_InputField NicknamePanel;
+
     private bool isSearch;
     private float serchTime;
     private string RoomName;
 
+
     private void Start()
     {
+        if (PhotonNetwork.IsConnected)
+        {
+            Connecttomaster.SetActive(false);
+            return;
+        }
         Connecttomaster.SetActive(true);
         Log.text = "Подключение...";
-        PhotonNetwork.LocalPlayer.NickName = "Игрок" + Random.Range(0, 55);
         PhotonNetwork.AutomaticallySyncScene = true;
         foreach (Button item in MenuButtons)
         {
             item.interactable = false;
         }
+        if (NicknamePanel.text == string.Empty)
+        {
+            PhotonNetwork.LocalPlayer.NickName = "Игрок" + Random.Range(0, 55);
+        }
+        else
+        {
+            PhotonNetwork.LocalPlayer.NickName = NicknamePanel.text;
+        }
         PhotonNetwork.ConnectUsingSettings();
+    }
+
+    public void EnterNickname()
+    {
+        PhotonNetwork.LocalPlayer.NickName = NicknamePanel.text;
     }
 
     public override void OnConnectedToMaster()
@@ -46,12 +66,11 @@ public class Menu : MonoBehaviourPunCallbacks
     public void CreateRoom()
     {
         isSearch = false;
-        RoomOptions roomOptions = new RoomOptions()
-        {
-            MaxPlayers = 2
-        };
         RoomName = "Комната " + Random.Range(0, 500);
-        PhotonNetwork.CreateRoom(RoomName, roomOptions);
+
+        RoomOptions roomOptions = new RoomOptions() { MaxPlayers = 2, PublishUserId = true };
+        PhotonNetwork.CreateRoom(RoomName, roomOptions, TypedLobby.Default);
+
     }
 
     public override void OnCreatedRoom()

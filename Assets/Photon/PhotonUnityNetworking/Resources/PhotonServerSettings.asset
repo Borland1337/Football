@@ -46,6 +46,12 @@ MonoBehaviour:
   - UpdateScore
   - Timer
   - GolAnnounce
+  - NextQuestionsAdditionalClient
+  - NextQuestionAdditionalClient
+  - PlayerAnswerAdditional
+  - Announce
+  - GlobalTimerSync
+  - TimerSync
   DisableAutoOpenWizard: 1
   ShowSettings: 0
   DevRegionSetOnce: 1

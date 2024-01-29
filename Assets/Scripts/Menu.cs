@@ -7,21 +7,19 @@ using UnityEngine.UI;
 
 public class Menu : MonoBehaviourPunCallbacks
 {
-    private bool Search;
+    [SerializeField] private TextMeshProUGUI TextSearchGame;
+    [SerializeField] private Button[] MenuButtons;
+    [SerializeField] private GameObject Connecttomaster;
+    [SerializeField] private TextMeshProUGUI Log;
+    private bool isSearch;
     private float serchTime;
-    public TextMeshProUGUI TextSearchGame;
-    public TextMeshProUGUI ConsoleMenu;
-    public Button[] MenuButtons;
     private string RoomName;
-    public Button Solo;
-    public void AddConsoleMessage(string message)
-    {
-        ConsoleMenu.text += "\n" + message;
-    }
+
     private void Start()
     {
-        AddConsoleMessage("Попытка подключение к мастеру серверов");
-        PhotonNetwork.LocalPlayer.NickName = "Игрок" + Random.Range(0, 2);
+        Connecttomaster.SetActive(true);
+        Log.text = "Подключение...";
+        PhotonNetwork.LocalPlayer.NickName = "Игрок" + Random.Range(0, 55);
         PhotonNetwork.AutomaticallySyncScene = true;
         foreach (Button item in MenuButtons)
         {
@@ -29,12 +27,14 @@ public class Menu : MonoBehaviourPunCallbacks
         }
         PhotonNetwork.ConnectUsingSettings();
     }
+
     public override void OnConnectedToMaster()
     {
+        Connecttomaster.SetActive(false);
         PhotonNetwork.JoinLobby();
-        AddConsoleMessage("Подключен к мастеру серверов");
         DisplayButtons();
     }
+
     private void DisplayButtons()
     {
         foreach (Button item in MenuButtons)
@@ -42,10 +42,10 @@ public class Menu : MonoBehaviourPunCallbacks
             item.interactable = true;
         }
     }
+
     public void CreateRoom()
     {
-        AddConsoleMessage("Попытка создать комнату...");
-        Search = false;
+        isSearch = false;
         RoomOptions roomOptions = new RoomOptions()
         {
             MaxPlayers = 2
@@ -53,38 +53,40 @@ public class Menu : MonoBehaviourPunCallbacks
         RoomName = "Комната " + Random.Range(0, 500);
         PhotonNetwork.CreateRoom(RoomName, roomOptions);
     }
+
     public override void OnCreatedRoom()
     {
         base.OnCreatedRoom();
-        AddConsoleMessage("Комната создана " + RoomName);
-        AddConsoleMessage("Ждем пользователей");
+        Connecttomaster.SetActive(true);
+        Log.text = "Комната создана. Ожидайте другого игрока";
     }
+
     public override void OnCreateRoomFailed(short returnCode, string message)
     {
         base.OnCreateRoomFailed(returnCode, message);
-        AddConsoleMessage("Ошибка создание комнаты " + message);
+        Connecttomaster.SetActive(true);
+        Log.text = "Ошибка создание комнаты. Перезапустите игру";
     }
+
     public void JoinRoomRandom()
     {
         if (PhotonNetwork.InRoom)
         {
-            AddConsoleMessage("Ты уже в комнате алё");
             return;
         }
-        Search = !Search;
-        if (Search)
+        isSearch = !isSearch;
+        if (isSearch)
         {
-            AddConsoleMessage("Попытка найти комнату...");
             StartCoroutine(JoinRoomCoroutine());
         }
         else
         {
-            AddConsoleMessage("Поиск комнаты отключен");
             StopCoroutine(JoinRoomCoroutine());
             serchTime = 0;
             TextSearchGame.text = string.Empty;
         }
     }
+
     private IEnumerator JoinRoomCoroutine()
     {
         while (!PhotonNetwork.InRoom)
@@ -93,46 +95,58 @@ public class Menu : MonoBehaviourPunCallbacks
             PhotonNetwork.JoinRandomRoom();
         }
     }
+
     public override void OnJoinedRoom()
     {
+        isSearch = false;
         base.OnJoinedRoom();
-        Room room = PhotonNetwork.CurrentRoom;
-        AddConsoleMessage("Подключились к комнате " + room.Name);
-        Search = false;
+        isSearch = false;
         serchTime = 0;
         TextSearchGame.text = string.Empty;
-        Solo.gameObject.SetActive(true);
+        Connecttomaster.SetActive(true);
+        Log.text = "Подключились к комнате. Ожидайте другого игрока";
     }
+
     public override void OnJoinRandomFailed(short returnCode, string message)
     {
+        if (isSearch)
+        {
+            return;
+        }
         base.OnJoinRandomFailed(returnCode, message);
-        AddConsoleMessage("Поиск игры... " + message);
+        Connecttomaster.SetActive(true);
+        Log.text = "Ошибка подключение к комнате. Перезапустите игру";
     }
-    public override void OnPlayerEnteredRoom(Photon.Realtime.Player newPlayer)
+
+    public override void OnPlayerEnteredRoom(Player newPlayer)
     {
         base.OnPlayerEnteredRoom(newPlayer);
-        AddConsoleMessage("Хост: Игрок подключился. Начинаем через 3 сек");
         StartCoroutine(ChangeLevel(3f));
     }
-    public void PlaySolo()
-    {
-        StartCoroutine(ChangeLevel(0f));
-    }
+
     private void Update()
     {
-        if (Search)
+        if (isSearch)
         {
             serchTime += Time.deltaTime;
             TextSearchGame.text = "Поиск комнаты.. " + (int)serchTime + " секунд прошло";
         }
     }
+
     public void ApplicationQuit()
     {
         Application.Quit();
     }
+
     private IEnumerator ChangeLevel(float value)
     {
         yield return new WaitForSecondsRealtime(value);
         PhotonNetwork.LoadLevel(1);
+    }
+    public override void OnDisconnected(DisconnectCause cause)
+    {
+        base.OnDisconnected(cause);
+        Connecttomaster.SetActive(true);
+        Log.text = "Ошибка " + cause.ToString() + " Перезапустите игру";
     }
 }

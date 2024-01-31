@@ -12,6 +12,7 @@ public class Menu : MonoBehaviourPunCallbacks, IMatchmakingCallbacks
     [SerializeField] private GameObject Connecttomaster;
     [SerializeField] private TextMeshProUGUI Log;
     [SerializeField] private TMP_InputField NicknamePanel;
+    [SerializeField] private DataBase dataBase;
 
     private bool isSearch;
     private float serchTime;
@@ -53,6 +54,8 @@ public class Menu : MonoBehaviourPunCallbacks, IMatchmakingCallbacks
         Connecttomaster.SetActive(false);
         PhotonNetwork.JoinLobby();
         DisplayButtons();
+        dataBase.LoadQuesitons(true);
+        dataBase.LoadQuesitons(false);
     }
 
     private void DisplayButtons()

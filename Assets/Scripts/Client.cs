@@ -21,9 +21,11 @@ public class Client : MonoBehaviour
     [SerializeField] private TMP_InputField CodeField;
     [SerializeField] private TextMeshProUGUI QuestionAdditionalText;
     private int BallPosition;
+    public DataBase DataBase;
 
     private void Start()
     {
+        DataBase = FindAnyObjectByType<DataBase>();
         if (photonView == null)
         {
             photonView = GetComponent<PhotonView>();
@@ -89,17 +91,17 @@ public class Client : MonoBehaviour
     {
         Questions.SetActive(true);
         QuestionsAdditional.SetActive(false);
-        QuestionText.text = Game.Data[num].Qustion;
+        QuestionText.text = DataBase.Qustions[num].Qustion;
 
         foreach (Button item in VariantButtons)
         {
             item.interactable = true;
         }
 
-        Variants[0].text = Game.Data[num].Variants[0];
-        Variants[1].text = Game.Data[num].Variants[1];
-        Variants[2].text = Game.Data[num].Variants[2];
-        Variants[3].text = Game.Data[num].Variants[3];
+        Variants[0].text = DataBase.Qustions[num].Variants[0];
+        Variants[1].text = DataBase.Qustions[num].Variants[1];
+        Variants[2].text = DataBase.Qustions[num].Variants[2];
+        Variants[3].text = DataBase.Qustions[num].Variants[3];
 
         Variants[0].color = Color.white;
         Variants[1].color = Color.white;
@@ -112,7 +114,7 @@ public class Client : MonoBehaviour
     {
         Questions.SetActive(false);
         QuestionsAdditional.SetActive(true);
-        QuestionAdditionalText.text = Game.DataAdditional[num].Qustion;
+        QuestionAdditionalText.text = DataBase.QustionsAdditional[num].Qustion;
     }
 
     public void EnterCode(int code)

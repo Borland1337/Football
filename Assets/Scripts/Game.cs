@@ -7,8 +7,6 @@ using UnityEngine.SceneManagement;
 
 public class Game : MonoBehaviourPunCallbacks
 {
-    public List<Qustions> Data = new List<Qustions>();
-    public List<QustionsAdditional> DataAdditional = new List<QustionsAdditional>();
     [SerializeField] private Transform ContentPage;
     [SerializeField] private List<Player> PlayerList = new List<Player>();
     [SerializeField] private Client Client;
@@ -27,9 +25,11 @@ public class Game : MonoBehaviourPunCallbacks
     private bool AdditionalQuestPause;
     private bool AdditionalQuestUnpause;
     private string FastPlayerAnswer = string.Empty;
+    public DataBase DataBase;
 
     private void Start()
     {
+        DataBase = FindAnyObjectByType<DataBase>();
         foreach (Player player in PhotonNetwork.PlayerList)
         {
             PlayerList.Add(player);
@@ -46,14 +46,22 @@ public class Game : MonoBehaviourPunCallbacks
 
     private void StartGame()
     {
-        CurrentQuestionID = Random.Range(0, Data.Count);
-        photonView.RPC("NextQuestionClient", RpcTarget.All, CurrentQuestionID);
+        if(DataBase.Qustions.Count == 0)
+        {
+            EndGame.SetActive(true);
+            EndGameText.text = "Критическая ошибка базы данных(Основные вопросы). Перезапустите игру";
+            Debug.Log("d");
+        }
+        if (timer <= 0)
+        {
+            CurrentQuestionID = Random.Range(0, DataBase.Qustions.Count);
+            photonView.RPC("NextQuestionClient", RpcTarget.All, CurrentQuestionID);
+        }
         GameStarted = true;
     }
 
     private void Update()
     {
-        Master();
         TimerText.text = "Время на ответ " + (int)timer + " секунд";
         GlobalTimerText.text = "Время до конца матча " + (int)GlobalTimer + " секунд";
         if (timer >= 0)
@@ -66,6 +74,7 @@ public class Game : MonoBehaviourPunCallbacks
         }
         if (PhotonNetwork.IsMasterClient)
         {
+            Master();
             if (GlobalTimer <= 0)
             {
                 GameStarted = false;
@@ -99,10 +108,6 @@ public class Game : MonoBehaviourPunCallbacks
 
     private void Master()
     {
-        if (PhotonNetwork.IsMasterClient == false)
-        {
-            return;
-        }
         if (GameStarted)
         {
             if (timer <= 0)
@@ -208,7 +213,7 @@ public class Game : MonoBehaviourPunCallbacks
             Debug.Log("Bug!!");
             return;
         }
-        if (Data[CurrentQuestionID].Correct == id)
+        if (DataBase.Qustions[CurrentQuestionID].Correct == id)
         {
             photonView.RPC("PlayerAnswer", player, true, id);
             player.isAnswered = true;
@@ -274,9 +279,14 @@ public class Game : MonoBehaviourPunCallbacks
     }
     private void AdditionalQuestion()
     {
+        if (DataBase.QustionsAdditional.Count == 0)
+        {
+            EndGame.SetActive(true);
+            EndGameText.text = "Критическая ошибка базы данных(Дополнительные вопросы). Перезапустите игру";
+        }
         PlayerList[0].isAnswered = false;
         PlayerList[1].isAnswered = false;
-        CurrentQuestionAdditionalID = Random.Range(0, DataAdditional.Count);
+        CurrentQuestionAdditionalID = Random.Range(0, DataBase.QustionsAdditional.Count);
         AdditionalQuestPause = true;
         photonView.RPC("Announce", RpcTarget.All, "Два игрока ответили правильно. Допольнительный вопрос!");
         photonView.RPC("TimerSync", RpcTarget.All, 30f);
@@ -287,7 +297,7 @@ public class Game : MonoBehaviourPunCallbacks
         string answersLog = string.Empty;
         int player1 = PlayerList[0].Additional;
         int player2 = PlayerList[1].Additional;
-        int correct = DataAdditional[CurrentQuestionAdditionalID].Correct;
+        int correct = DataBase.QustionsAdditional[CurrentQuestionAdditionalID].Correct;
         if (PlayerList[0].isAnsweredAdditional == false)
         {
             answersLog = "Игрок" + PlayerList[0].NickName + "воздержался от ответа. Очко достается игроку " + PlayerList[1].NickName;
